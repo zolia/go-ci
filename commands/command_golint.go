@@ -111,7 +111,7 @@ func GoLint(pathToCheck string, excludes ...string) error {
 	}
 
 	formatAndPrintGoLintOutput(output)
-	fmt.Println("Linting failed!")
+	fmt.Printf("Linting failed: %s\n", err)
 	return err
 }
 
