@@ -137,11 +137,11 @@ func GoLintD(dir string, excludes ...string) error {
 		return err
 	}
 
-	output, err := shell.NewCmd(golintBin + " --set_exit_status --min_confidence=1 " + strings.Join(dirs, " ")).Output()
+	output, err := shell.NewCmd(golintBin + " --set_exit_status --min_confidence 1 " + strings.Join(dirs, " ")).Output()
 	exitStatus := sh.ExitStatus(err)
 	if exitStatus != 0 {
 		formatAndPrintGoLintOutput(output)
-		fmt.Println("golint: linting failed!")
+		fmt.Printf("golint: linting failed: %s\n", err)
 		return err
 	}
 
