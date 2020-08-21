@@ -83,7 +83,7 @@ func GoImports(pathToCheck string, excludes ...string) error {
 	args = append(args, dirsToLook...)
 	out, err := sh.Output(goimportsBinaryPath, args...)
 	if err != nil {
-		fmt.Println("Could not run goimports")
+		fmt.Printf("Could not run goimports: %s\n", err)
 		return err
 	}
 	if len(out) != 0 {
@@ -117,7 +117,7 @@ func GoImportsD(dir string, excludes ...string) error {
 	}
 	out, err := shell.NewCmd(goimportsBin + " -e -l -d " + strings.Join(dirs, " ")).Output()
 	if err != nil {
-		fmt.Println("goimports: error executing")
+		fmt.Printf("goimports: error executing %s\n", err)
 		return err
 	}
 	if len(out) != 0 {
