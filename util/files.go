@@ -18,6 +18,7 @@
 package util
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,6 +87,7 @@ func GetProjectFileDirectories(paths []string) ([]string, error) {
 	root := "./"
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() && !IsPathExcluded(paths, path) && path != root {
+			fmt.Printf("adding path: %s\n", path)
 			directories = append(directories, path)
 		}
 		return nil

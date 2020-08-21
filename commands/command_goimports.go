@@ -31,7 +31,7 @@ import (
 	"github.com/zolia/go-ci/util"
 )
 
-// Fetches the goimports binary
+// Fetches the 	goimports binary
 func GetImports() error {
 	path, _ := util.GetGoBinaryPath("goimports")
 	if path != "" {
