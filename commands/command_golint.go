@@ -101,7 +101,7 @@ func GoLint(pathToCheck string, excludes ...string) error {
 		files = append(files, absolutePath)
 	}
 
-	args := []string{"--set_exit_status", "--min_confidence=1"}
+	args := []string{"--set_exit_status", "--min_confidence 1"}
 	args = append(args, files...)
 	output, err := sh.Output(golintPath, args...)
 	exitStatus := sh.ExitStatus(err)
