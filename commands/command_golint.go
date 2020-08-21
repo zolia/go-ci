@@ -38,7 +38,7 @@ func GetLint() error {
 	}
 	err := sh.RunV("go", "get", "-u", "golang.org/x/lint/golint")
 	if err != nil {
-		fmt.Println("Could not go get golint")
+		fmt.Printf("Could not go get golint: %s\n", err)
 		return err
 	}
 	return nil
@@ -133,7 +133,7 @@ func GoLintD(dir string, excludes ...string) error {
 	allExcludes = append(allExcludes, util.GoLintExcludes()...)
 	dirs, err := util.GetProjectFileDirectories(allExcludes)
 	if err != nil {
-		fmt.Println("golint: go list crashed")
+		fmt.Printf("golint: go list crashed: %s\n", err)
 		return err
 	}
 
