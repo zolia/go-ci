@@ -27,8 +27,8 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
-	"github.com/mysteriumnetwork/go-ci/shell"
-	"github.com/mysteriumnetwork/go-ci/util"
+	"github.com/zolia/go-ci/shell"
+	"github.com/zolia/go-ci/util"
 )
 
 // Fetches the goimports binary

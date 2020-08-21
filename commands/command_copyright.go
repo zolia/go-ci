@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/mysteriumnetwork/go-ci/util"
+	"github.com/zolia/go-ci/util"
 )
 
 var copyrightRegex = regexp.MustCompile(`Copyright \(C\) \d{4}`)

@@ -1,6 +1,6 @@
-module github.com/mysteriumnetwork/go-ci
+module github.com/zolia/go-ci
 
-go 1.13
+go 1.14
 
 require (
 	github.com/emirpasic/gods v1.12.0 // indirect
