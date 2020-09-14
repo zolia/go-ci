@@ -40,7 +40,7 @@ func GetImports() error {
 	}
 	err := sh.RunV("go", "get", "golang.org/x/tools/cmd/goimports")
 	if err != nil {
-		fmt.Println("Could not go get goimports")
+		fmt.Printf("Could not go get goimports: %s\n", err)
 		return err
 	}
 	return nil
