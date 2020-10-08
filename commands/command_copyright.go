@@ -28,7 +28,7 @@ import (
 	"github.com/zolia/go-ci/util"
 )
 
-var copyrightRegex = regexp.MustCompile(`Copyright \(C\) \d{4}`)
+var copyrightRegex = regexp.MustCompile(`Copyright \([cC]+\) \d{4}`)
 
 func getFilesWithoutCopyright(dirsToCheck []string) ([]string, error) {
 	badFiles := make([]string, 0)
