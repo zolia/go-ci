@@ -39,6 +39,24 @@ func Check(dir string, excludes ...string) error {
 	return nil
 }
 
+// CheckFmt performs all the common checks
+func CheckFmt(dir string, excludes ...string) error {
+	copyrightWrapper := func() error {
+		return Copyright(dir, excludes...)
+	}
+	importsWrapper := func() error {
+		return GoFmt(dir, excludes...)
+	}
+	goLintWrapper := func() error {
+		return GoLint(dir, excludes...)
+	}
+	goVetWrapper := func() error {
+		return GoVet(dir)
+	}
+	mg.Deps(copyrightWrapper, importsWrapper, goLintWrapper, goVetWrapper)
+	return nil
+}
+
 // CheckD performs all the common checks on directories
 // Instead of packages, it operates on directories, thus it is compatible with gomodules outside GOPATH.
 func CheckD(dir string, excludes ...string) error {
@@ -47,6 +65,25 @@ func CheckD(dir string, excludes ...string) error {
 	}
 	importsWrapper := func() error {
 		return GoImportsD(dir, excludes...)
+	}
+	goLintWrapper := func() error {
+		return GoLintD(dir, excludes...)
+	}
+	goVetWrapper := func() error {
+		return GoVet(dir)
+	}
+	mg.Deps(copyrightWrapper, importsWrapper, goLintWrapper, goVetWrapper)
+	return nil
+}
+
+// CheckFmtD performs all the common checks on directories
+// Instead of packages, it operates on directories, thus it is compatible with gomodules outside GOPATH.
+func CheckFmtD(dir string, excludes ...string) error {
+	copyrightWrapper := func() error {
+		return CopyrightD(dir, excludes...)
+	}
+	importsWrapper := func() error {
+		return GoFmtD(dir, excludes...)
 	}
 	goLintWrapper := func() error {
 		return GoLintD(dir, excludes...)
