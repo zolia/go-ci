@@ -25,11 +25,12 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+
 	"github.com/zolia/go-ci/shell"
 	"github.com/zolia/go-ci/util"
 )
 
-// Checks if golint exists, if not installs it
+// GetLint Checks if golint exists, if not installs it
 func GetLint() error {
 	path, _ := util.GetGoBinaryPath("golint")
 	if path != "" {
