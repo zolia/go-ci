@@ -20,18 +20,14 @@ package commands
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/magefile/mage/mg"
-	"github.com/magefile/mage/sh"
 	"github.com/zolia/go-ci/shell"
 	"github.com/zolia/go-ci/util"
 )
 
-// Fetches the 	goimports binary
+// GetImports Fetches the goimports binary
 func GetImports() error {
 	path, _ := util.GetGoBinaryPath("goimports")
 	if path != "" {
@@ -39,63 +35,13 @@ func GetImports() error {
 		return nil
 	}
 
-	cmd := shell.NewCmd("/usr/local/go/bin/go get -u -x -v golang.org/x/tools/cmd/goimports")
+	cmd := shell.NewCmd("$GOROOT/bin/go get -u -x -v golang.org/x/tools/cmd/goimports")
 	out, err := cmd.Output()
 	fmt.Printf("go get goimports output: %s\n", out)
-	// err := sh.RunV("go", "get", "-v", "-x", "-u", "golang.org/x/tools/cmd/goimports")
 	if err != nil {
 		fmt.Printf("Could not go get goimports: %s\n", err)
 		return err
 	}
-	return nil
-}
-
-// GoImports checks for issues with go imports
-func GoImports(pathToCheck string, excludes ...string) error {
-	mg.Deps(GetImports)
-
-	goimportsBinaryPath, err := util.GetGoBinaryPath("goimports")
-	if err != nil {
-		fmt.Println("Tool 'goimports' not found")
-		return err
-	}
-	gopath := util.GetGoPath()
-	dirs, err := util.GetPackagePathsWithExcludes(pathToCheck, excludes...)
-	if err != nil {
-		fmt.Println("go list crashed")
-		return err
-	}
-
-	dirsToLook := make([]string, 0)
-	for _, dir := range dirs {
-		absolutePath := path.Join(gopath, "src", dir)
-		res, _ := ioutil.ReadDir(absolutePath)
-		for _, v := range res {
-			if v.IsDir() {
-				continue
-			}
-			extension := filepath.Ext(v.Name())
-			if extension != ".go" {
-				continue
-			}
-			path := path.Join(absolutePath, v.Name())
-			dirsToLook = append(dirsToLook, path)
-		}
-	}
-
-	args := []string{"-e", "-l"}
-	args = append(args, dirsToLook...)
-	out, err := sh.Output(goimportsBinaryPath, args...)
-	if err != nil {
-		fmt.Printf("Could not run goimports: %s\n", err)
-		return err
-	}
-	if len(out) != 0 {
-		fmt.Println("The following files contain go import errors:")
-		fmt.Println(out)
-		return errors.New("not all imports follow the goimports format")
-	}
-	fmt.Println("Goimports is happy - all files are OK!")
 	return nil
 }
 

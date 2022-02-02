@@ -27,10 +27,10 @@ func Check(dir string, excludes ...string) error {
 		return Copyright(dir, excludes...)
 	}
 	importsWrapper := func() error {
-		return GoImports(dir, excludes...)
+		return GoImportsD(dir, excludes...)
 	}
 	goLintWrapper := func() error {
-		return GoLint(dir, excludes...)
+		return GoLintD(dir, excludes...)
 	}
 	goVetWrapper := func() error {
 		return GoVet(dir)
