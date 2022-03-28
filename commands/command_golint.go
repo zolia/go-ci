@@ -30,16 +30,16 @@ import (
 	"github.com/zolia/go-ci/util"
 )
 
-// GetLint Checks if golint exists, if not installs it
+// GetLint Checks if revive exists, if not installs it
 func GetLint() error {
-	path, _ := util.GetGoBinaryPath("golint")
+	path, _ := util.GetGoBinaryPath("revive")
 	if path != "" {
-		fmt.Println("Tool 'golint' already installed")
+		fmt.Println("Tool 'revive' already installed")
 		return nil
 	}
-	err := sh.RunV("go", "get", "-u", "golang.org/x/lint/golint")
+	err := sh.RunV("go", "install", "github.com/mgechev/revive@latest")
 	if err != nil {
-		fmt.Printf("Could not go get golint: %s\n", err)
+		fmt.Printf("Could not go install revive: %s\n", err)
 		return err
 	}
 	return nil
@@ -83,7 +83,7 @@ func formatAndPrintGoLintOutput(rawGolint string) {
 // GoLint checks for linting errors in the solution
 func GoLint(pathToCheck string, excludes ...string) error {
 	mg.Deps(GetLint)
-	golintPath, err := util.GetGoBinaryPath("golint")
+	golintPath, err := util.GetGoBinaryPath("revive")
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func GoLint(pathToCheck string, excludes ...string) error {
 //     commands.GoLintD(".", "docs")
 func GoLintD(dir string, excludes ...string) error {
 	mg.Deps(GetLint)
-	golintBin, err := util.GetGoBinaryPath("golint")
+	reviveBin, err := util.GetGoBinaryPath("revive")
 	if err != nil {
 		return err
 	}
@@ -134,18 +134,18 @@ func GoLintD(dir string, excludes ...string) error {
 	allExcludes = append(allExcludes, util.GoLintExcludes()...)
 	dirs, err := util.GetProjectFileDirectories(allExcludes)
 	if err != nil {
-		fmt.Printf("golint: go list crashed: %s\n", err)
+		fmt.Printf("revive: go list crashed: %s\n", err)
 		return err
 	}
 
-	output, err := shell.NewCmd(golintBin + " --set_exit_status " + strings.Join(dirs, " ")).Output()
+	output, err := shell.NewCmd(reviveBin + " --set_exit_status " + strings.Join(dirs, " ")).Output()
 	exitStatus := sh.ExitStatus(err)
 	if exitStatus != 0 {
 		formatAndPrintGoLintOutput(output)
-		fmt.Printf("golint: linting failed: %s\n", err)
+		fmt.Printf("revive: linting failed: %s\n", err)
 		return err
 	}
 
-	fmt.Println("golint: no linting errors")
+	fmt.Println("revive: no linting errors")
 	return nil
 }
