@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/magefile/mage/mg"
+
 	"github.com/zolia/go-ci/shell"
 	"github.com/zolia/go-ci/util"
 )
@@ -35,7 +36,7 @@ func GetImports() error {
 		return nil
 	}
 
-	cmd := shell.NewCmd("$GOROOT/bin/go get -u -x -v golang.org/x/tools/cmd/goimports")
+	cmd := shell.NewCmd("go install golang.org/x/tools/cmd/goimports@latest")
 	out, err := cmd.Output()
 	fmt.Printf("go get goimports output: %s\n", out)
 	if err != nil {
