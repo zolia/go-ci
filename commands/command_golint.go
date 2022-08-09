@@ -122,7 +122,7 @@ func GoLint(pathToCheck string, excludes ...string) error {
 //
 // Example:
 //     commands.GoLintD(".", "docs")
-func GoLintD(dir string, excludes ...string) error {
+func GoLintD(config string, excludes ...string) error {
 	mg.Deps(GetLint)
 	reviveBin, err := util.GetGoBinaryPath("revive")
 	if err != nil {
@@ -138,7 +138,12 @@ func GoLintD(dir string, excludes ...string) error {
 		return err
 	}
 
-	output, err := shell.NewCmd(reviveBin + " --set_exit_status " + strings.Join(dirs, " ")).Output()
+	var configParam string
+	if config != "" {
+		configParam = " --config " + config
+	}
+
+	output, err := shell.NewCmd(reviveBin + configParam + " --set_exit_status " + strings.Join(dirs, " ")).Output()
 	exitStatus := sh.ExitStatus(err)
 	if exitStatus != 0 {
 		formatAndPrintGoLintOutput(output)
