@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -36,7 +37,7 @@ func getFilesWithoutCopyright(dirsToCheck []string) ([]string, error) {
 
 	for i := range dirsToCheck {
 		absolutePath := path.Join(gopath, "src", dirsToCheck[i])
-		files, err := ioutil.ReadDir(absolutePath)
+		files, err := os.ReadDir(absolutePath)
 		if err != nil {
 			return badFiles, err
 		}
