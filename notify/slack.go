@@ -29,11 +29,13 @@ const (
 
 // DeploymentMessage is a message sent to Slack on deployment
 type DeploymentMessage struct {
-	SlackURL string
-	Env      string
-	Repo     string
-	Error    string
-	Color    Color
+	SlackURL   string
+	Env        string
+	Repo       string
+	Error      string
+	Author     string
+	AuthorLink string
+	Color      Color
 }
 
 // SlackDeployment sends a Slack message on deployment
@@ -54,8 +56,8 @@ func SlackDeployment(msg DeploymentMessage) error {
 	}
 	attachment := slack.Attachment{
 		Color:      string(msg.Color),
-		AuthorName: "Octopus",
-		AuthorLink: msg.Repo,
+		AuthorName: msg.Author,
+		AuthorLink: msg.AuthorLink,
 		Title:      title,
 		Pretext:    fmt.Sprintf("Branch: %s ", strings.Replace(branchName, "refs/heads/", "", 1)),
 		Text:       text,

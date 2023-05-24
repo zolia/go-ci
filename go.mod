@@ -1,4 +1,4 @@
-module github.com/ignasbernotas/go-ci
+module github.com/zolia/go-ci
 
 go 1.17
 
@@ -10,7 +10,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0
 	github.com/slack-go/slack v0.12.2
-	github.com/zolia/go-ci v0.0.0-20220809085742-5c707346f4d9
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/tools v0.2.0
 	gopkg.in/src-d/go-git.v4 v4.11.0
