@@ -153,9 +153,10 @@ func deployEnv(env deploy.Env, validateEnv bool) error {
 
 func getDeploymentConfig(env deploy.Env) deploy.DeployConfig {
 	message := notify.DeploymentMessage{
-		SlackURL: slackURL,
-		Env:      env.Env,
-		Repo:     "https://ci.optimus-prime.com/machines/" + project,
+		SlackURL:   slackURL,
+		Env:        env.Env,
+		Author:     "CI",
+		AuthorLink: "https://ci.optimus-prime.com/machines/" + project,
 	}
 
 	cfg := deploy.Config{
@@ -178,6 +179,7 @@ func getDeploymentConfig(env deploy.Env) deploy.DeployConfig {
 
 	return cfg
 }
+
 ```
 
 With this, just run make in the root of your repo and you're set!
