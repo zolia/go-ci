@@ -129,11 +129,6 @@ func deployCommands(cfg Config) []Command {
 			Args: []string{"[ ! -d ~/" + cfg.HomeDir + " ] && mkdir -p", cfg.HomeDir, "&"},
 		},
 		{
-			Name: "copy binary to remote",
-			Cmd:  "scp",
-			Args: []string{fmt.Sprintf("%s/%s", cfg.BinDir, cfg.Service), fmt.Sprintf("%s:~/%s", cfg.SSHAddr, cfg.HomeDir)},
-		},
-		{
 			Name: "copy .env file to remote",
 			Cmd:  "scp",
 			Args: []string{".env_" + cfg.Env, fmt.Sprintf("%s:~/%s/%s", cfg.SSHAddr, cfg.HomeDir, ".env")},
@@ -161,6 +156,11 @@ func deployCommands(cfg Config) []Command {
 			Name: "killing existing service",
 			Cmd:  "ssh",
 			Args: []string{"killall", cfg.Service, "&"},
+		},
+		{
+			Name: "copy binary to remote",
+			Cmd:  "scp",
+			Args: []string{fmt.Sprintf("%s/%s", cfg.BinDir, cfg.Service), fmt.Sprintf("%s:~/%s", cfg.SSHAddr, cfg.HomeDir)},
 		},
 		{
 			Name: "start service",
