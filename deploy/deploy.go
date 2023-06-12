@@ -17,7 +17,9 @@ type Command struct {
 
 // Env is a deployment environment
 type Env struct {
+	// Project name used for home dir
 	Project string
+	// Env is the name of the environment and .env file
 	Env     string
 	SSHAddr string
 }
