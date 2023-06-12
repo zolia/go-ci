@@ -42,7 +42,7 @@ type Config struct {
 	// Files to copy to remote
 	Files map[string][]string
 	// possible commands to run before/after launch
-	// PreLaunch  []Command
+	Prepare []Command
 	// PostLaunch []Command
 	// no need to expose for now
 	// SCPArgs []string
@@ -106,7 +106,9 @@ func deploy(cfg Config, commands []Command) error {
 		} else if cmd.Cmd == "scp" {
 			args = append([]string{"-i", cfg.SSHKey}, cmd.Args...)
 		} else {
-			return fmt.Errorf("unknown command: %s (supported: ssh,scp)", cmd.Cmd)
+			args = append(args, cmd.Args...)
+			// uncomment to blacklist other commands
+			// return fmt.Errorf("unknown command: %s (supported: ssh,scp)", cmd.Cmd)
 		}
 
 		if err := sh.RunV(cmd.Cmd, args...); err != nil {
@@ -121,11 +123,6 @@ func deploy(cfg Config, commands []Command) error {
 
 func deployCommands(cfg Config) []Command {
 	prepareCommands := []Command{
-		{
-			Name: "killing existing service",
-			Cmd:  "ssh",
-			Args: []string{"killall", cfg.Service, "&"},
-		},
 		{
 			Name: "create project dir in home",
 			Cmd:  "ssh",
@@ -161,6 +158,11 @@ func deployCommands(cfg Config) []Command {
 
 	startCommands := []Command{
 		{
+			Name: "killing existing service",
+			Cmd:  "ssh",
+			Args: []string{"killall", cfg.Service, "&"},
+		},
+		{
 			Name: "start service",
 			Cmd:  "ssh",
 			Args: []string{"cd", fmt.Sprintf("~/%s", cfg.HomeDir), "&&", "coproc", "./" + cfg.Service, "&>>", logFile, "&"},
@@ -172,7 +174,12 @@ func deployCommands(cfg Config) []Command {
 		},
 	}
 
-	allCommands := append(prepareCommands, copyCommands...)
+	allCommands := make([]Command, 0)
+	if cfg.Prepare != nil {
+		allCommands = append(allCommands, cfg.Prepare...)
+	}
+	allCommands = append(allCommands, prepareCommands...)
+	allCommands = append(allCommands, copyCommands...)
 	allCommands = append(allCommands, startCommands...)
 	return allCommands
 }
