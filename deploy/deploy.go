@@ -9,10 +9,11 @@ import (
 
 // Command is a command to run during deployment
 type Command struct {
-	Name string
-	Cmd  string
-	Args []string
-	Func func() error
+	Name         string
+	Cmd          string
+	Args         []string
+	IgnoreFailed bool
+	Func         func() error
 }
 
 // Env is a deployment environment
@@ -112,6 +113,10 @@ func deploy(cfg Config, commands []Command) error {
 		}
 
 		if err := sh.RunV(cmd.Cmd, args...); err != nil {
+			if cmd.IgnoreFailed {
+				fmt.Printf("ignoring failed command: %s\n", cmd.Name)
+				continue
+			}
 			return fmt.Errorf("failed to run %s: %w", cmd.Name, err)
 		}
 	}
@@ -153,9 +158,10 @@ func deployCommands(cfg Config) []Command {
 
 	startCommands := []Command{
 		{
-			Name: "killing existing service",
-			Cmd:  "ssh",
-			Args: []string{"killall", cfg.Service, "&"},
+			Name:         "killing existing service and wait for it to die",
+			Cmd:          "ssh",
+			Args:         []string{"killall", cfg.Service, "-w"},
+			IgnoreFailed: true,
 		},
 		{
 			Name: "copy binary to remote",
