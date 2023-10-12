@@ -47,7 +47,7 @@ func SlackDeployment(msg DeploymentMessage) error {
 
 	title := fmt.Sprintf("Deployed: %s env", msg.Env)
 	text := "Redeployment."
-	if strings.Trim(log, " ") == "" {
+	if strings.TrimSpace(log) != "" {
 		text = fmt.Sprintf("Log: \n%s", log)
 	}
 	if msg.Color == Bad {
