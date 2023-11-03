@@ -65,7 +65,6 @@ func (gc *GitCommiter) Checkout(options *CheckoutOptions) error {
 	err = w.Checkout(&gogit.CheckoutOptions{
 		Create: false,
 		Force:  options.Force,
-		Keep:   options.Keep,
 	})
 	if err != nil {
 		return err
