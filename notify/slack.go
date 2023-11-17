@@ -32,6 +32,7 @@ type DeploymentMessage struct {
 	SlackURL   string
 	Env        string
 	Repo       string
+	Project    string
 	Error      string
 	Author     string
 	AuthorLink string
@@ -45,13 +46,13 @@ func SlackDeployment(msg DeploymentMessage) error {
 		return fmt.Errorf("failed to get branch and log: %w", err)
 	}
 
-	title := fmt.Sprintf("Deployed: %s env", msg.Env)
+	title := fmt.Sprintf("Deployed %s: %s env", msg.Project, msg.Env)
 	text := "Redeployment."
 	if strings.TrimSpace(log) != "" {
 		text = fmt.Sprintf("Log: \n%s", log)
 	}
 	if msg.Color == Bad {
-		title = fmt.Sprintf("Failed to deploy: %s env", msg.Env)
+		title = fmt.Sprintf("Failed to deploy %s: %s env", msg.Project, msg.Env)
 		text = fmt.Sprintf("Error: %s\n", msg.Error)
 	}
 	attachment := slack.Attachment{

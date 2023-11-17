@@ -70,10 +70,14 @@ type Config struct {
 
 // Deploy deploys files to remote and runs commands
 func Deploy(cfg Config) error {
+	fmt.Printf("construct deploy commands to %s env...\n", cfg.Env)
 	commands := deployCommands(cfg)
 
+	fmt.Printf("deploying to %s env...\n", cfg.Env)
 	err := deploy(cfg, commands)
 	if err != nil {
+		fmt.Printf("failed to deploy: %v", err)
+
 		if cfg.Error != nil {
 			return cfg.Error(err)
 		}
@@ -102,17 +106,17 @@ func setupInitDCommands(cfg Config) []Command {
 		{
 			Name: "setup init.d service",
 			Cmd:  "ssh",
-			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "ln", "-s", initDFile, initDLink},
+			Args: []string{"sudo", "ln", "-s", initDFile, initDLink},
 		},
 		{
 			Name: "setup init.d service permissions",
 			Cmd:  "ssh",
-			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "chmod", "+x", initDFile},
+			Args: []string{"sudo", "chmod", "+x", initDFile},
 		},
 		{
 			Name: "setup init.d service defaults",
 			Cmd:  "ssh",
-			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "update-rc.d", cfg.Service, "defaults"},
+			Args: []string{"sudo", "update-rc.d", cfg.Service, "defaults"},
 		},
 	}
 }
