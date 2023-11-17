@@ -47,7 +47,10 @@ type Config struct {
 	Env string
 	// HomeDir is tilde + project dir on the remote "~/<x>"
 	HomeDir string
-	BinDir  string
+	// KeystoreDir certificate key stores
+	CopyDst map[string][]string
+	// Binary execution dir
+	BinDir string
 	// LogFileName is name of the log file to copy to remote
 	LogFileName func() string
 	// Files to copy to remote
@@ -67,14 +70,6 @@ type Config struct {
 
 // Deploy deploys files to remote and runs commands
 func Deploy(cfg Config) error {
-	// setup init.d service
-	if cfg.InitD {
-		err := setupInitD(cfg)
-		if err != nil {
-			return err
-		}
-	}
-
 	commands := deployCommands(cfg)
 
 	err := deploy(cfg, commands)
@@ -93,7 +88,7 @@ func Deploy(cfg Config) error {
 	return nil
 }
 
-func setupInitD(cfg Config) error {
+func setupInitDCommands(cfg Config) []Command {
 	// check if init.d service exists
 	if CheckServiceExists(cfg) {
 		return nil
@@ -102,19 +97,24 @@ func setupInitD(cfg Config) error {
 	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
 	fmt.Printf("setting up init.d service for: %s\n", initDFile)
 	initDLink := fmt.Sprintf("/etc/init.d/%s", cfg.Service)
-	err := sh.RunV("ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "ln", "-s", initDFile, initDLink)
-	if err != nil {
-		return fmt.Errorf("failed to setup init.d service: %w", err)
+
+	return []Command{
+		{
+			Name: "setup init.d service",
+			Cmd:  "ssh",
+			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "ln", "-s", initDFile, initDLink},
+		},
+		{
+			Name: "setup init.d service permissions",
+			Cmd:  "ssh",
+			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "chmod", "+x", initDFile},
+		},
+		{
+			Name: "setup init.d service defaults",
+			Cmd:  "ssh",
+			Args: []string{"ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "update-rc.d", cfg.Service, "defaults"},
+		},
 	}
-	err = sh.RunV("ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "chmod", "+x", "/etc/init.d/"+cfg.Service)
-	if err != nil {
-		return fmt.Errorf("failed to setup init.d service: %w", err)
-	}
-	err = sh.RunV("ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "sudo", "update-rc.d", cfg.Service, "defaults")
-	if err != nil {
-		return fmt.Errorf("failed to setup init.d service: %w", err)
-	}
-	return nil
 }
 
 func CheckServiceExists(cfg Config) bool {
@@ -144,7 +144,7 @@ func CheckServiceExists(cfg Config) bool {
 
 func deploy(cfg Config, commands []Command) error {
 	for _, cmd := range commands {
-		fmt.Println("-", cmd.Name)
+		fmt.Println("\033[34m-", cmd.Name, "\033[0m")
 
 		// run command Func if provided
 		if cmd.Func != nil {
@@ -181,6 +181,7 @@ func deploy(cfg Config, commands []Command) error {
 }
 
 func deployCommands(cfg Config) []Command {
+	// setup init.d service
 	prepareCommands := []Command{
 		{
 			Name: "create project dir in home",
@@ -189,9 +190,27 @@ func deployCommands(cfg Config) []Command {
 		},
 	}
 
-	copyCommands := []Command{}
-	targetRemoteHome := fmt.Sprintf("%s:%s", cfg.SSHAddr, cfg.HomeDir)
+	if cfg.CopyDst != nil {
+		for dir := range cfg.CopyDst {
+			prepareCommands = append(prepareCommands, Command{
+				Name: "create dir in remote",
+				Cmd:  "ssh",
+				Args: []string{"[ ! -d " + dir + " ] && mkdir -p", dir, "&"},
+			})
 
+			for _, f := range cfg.CopyDst[dir] {
+				// copy files to remote
+				prepareCommands = append(prepareCommands, Command{
+					Name: "copy " + f,
+					Cmd:  "scp",
+					Args: []string{f, fmt.Sprintf("%s:%s", cfg.SSHAddr, dir)},
+				})
+			}
+		}
+	}
+
+	var copyCommands []Command
+	targetRemoteHome := fmt.Sprintf("%s:%s", cfg.SSHAddr, cfg.HomeDir)
 	for _, file := range cfg.Files {
 		copyCommands = append(copyCommands, Command{
 			Name: "copy " + file,
@@ -200,11 +219,25 @@ func deployCommands(cfg Config) []Command {
 		})
 	}
 
-	startCommands := []Command{
+	serviceWithHomeDir := fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service)
+
+	uploadCommands := []Command{
 		{
 			Name:         "stopping existing service",
 			Cmd:          "ssh",
 			Args:         []string{"sudo", "service", cfg.Service, "stop"},
+			IgnoreFailed: true,
+		},
+		{
+			Name:         "backup existing properties file",
+			Cmd:          "ssh",
+			Args:         []string{"sudo", "mv", serviceWithHomeDir + ".properties", serviceWithHomeDir + ".properties.bak"},
+			IgnoreFailed: true,
+		},
+		{
+			Name:         "rename new properties file",
+			Cmd:          "ssh",
+			Args:         []string{"sudo", "mv", serviceWithHomeDir + ".properties." + cfg.Env, serviceWithHomeDir + ".properties"},
 			IgnoreFailed: true,
 		},
 		{
@@ -215,6 +248,14 @@ func deployCommands(cfg Config) []Command {
 				fmt.Sprintf("%s/%s.jar", targetRemoteHome, cfg.Service),
 			},
 		},
+	}
+
+	var initdCommands []Command
+	if cfg.InitD {
+		initdCommands = setupInitDCommands(cfg)
+	}
+
+	startCommands := []Command{
 		{
 			Name: "reload systemctl daemon",
 			Cmd:  "ssh",
@@ -238,6 +279,8 @@ func deployCommands(cfg Config) []Command {
 	}
 	allCommands = append(allCommands, prepareCommands...)
 	allCommands = append(allCommands, copyCommands...)
+	allCommands = append(allCommands, uploadCommands...)
+	allCommands = append(allCommands, initdCommands...)
 	allCommands = append(allCommands, startCommands...)
 	return allCommands
 }
