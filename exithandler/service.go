@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,12 +31,12 @@ func WrapServices(services ...Service) error {
 	for _, srv := range services {
 		func(serv Service) {
 			g.Go(func() error {
-				fmt.Printf("starting service: %s", serv.Name())
+				log.Tracef("starting service: %s", serv.Name())
 				return serv.Start()
 			})
 			g.Go(func() error {
 				<-gCtx.Done()
-				fmt.Printf("stopping service: %s", serv.Name())
+				log.Tracef("stopping service: %s", serv.Name())
 				return serv.Stop(gCtx)
 			})
 		}(srv)
@@ -43,7 +44,7 @@ func WrapServices(services ...Service) error {
 	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("failed to shutdown: %w", err)
 	}
-	fmt.Printf("all services stopped")
+	log.Tracef("all services stopped")
 	return nil
 }
 
