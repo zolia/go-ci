@@ -24,20 +24,31 @@ func WrapServices(services ...Service) error {
 		context.Background(),
 		syscall.SIGINT,
 		syscall.SIGTERM,
-		syscall.SIGKILL,
+		// syscall.SIGKILL,
 	)
 	defer stop()
 	g, gCtx := errgroup.WithContext(mainCtx)
 	for _, srv := range services {
 		func(serv Service) {
 			g.Go(func() error {
-				log.Tracef("starting service: %s", serv.Name())
-				return serv.Start()
+				log.Tracef("[service] starting: %s", serv.Name())
+				err := serv.Start()
+				log.Tracef("[service] finished service: %s", serv.Name())
+				if err != nil {
+					log.Errorf("[service] %s start returned err: %v", serv.Name(), err)
+				}
+				return err
 			})
 			g.Go(func() error {
 				<-gCtx.Done()
-				log.Tracef("stopping service: %s", serv.Name())
-				return serv.Stop(gCtx)
+				log.Tracef("[service] stopping service: %s", serv.Name())
+				err := serv.Stop(gCtx)
+				log.Tracef("[service] stopped service: %s", serv.Name())
+
+				if err != nil {
+					log.Errorf("[service] %s stop returned err: %v", serv.Name(), err)
+				}
+				return err
 			})
 		}(srv)
 	}
