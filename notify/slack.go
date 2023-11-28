@@ -107,7 +107,7 @@ func getBranchAndLog() (string, string, error) {
 		return "", "", fmt.Errorf("failed to iterate over commits: %w", err)
 	}
 
-	logs := strings.Join(logEntries, "\n - ")
+	logs := " - " + strings.Join(logEntries, "\n - ")
 
 	return h.Name().String(), logs, nil
 }

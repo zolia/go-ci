@@ -151,10 +151,12 @@ func deployCommands(cfg Config) []Command {
 		}
 	}
 
-	logFile := fmt.Sprintf("%s_%s.log", cfg.Service, time.Now().Format("2006_01_02_15"))
+	logFile := fmt.Sprintf("%s_%s.log", cfg.Service, time.Now().Format("2006_01_02"))
 	if cfg.LogFileName != nil {
 		logFile = cfg.LogFileName()
 	}
+
+	latestLogFile := "latest.log"
 
 	startCommands := []Command{
 		{
@@ -168,10 +170,23 @@ func deployCommands(cfg Config) []Command {
 			Cmd:  "scp",
 			Args: []string{fmt.Sprintf("%s/%s", cfg.BinDir, cfg.Service), fmt.Sprintf("%s:~/%s", cfg.SSHAddr, cfg.HomeDir)},
 		},
+		// symlink latest.log to current log file
+		{
+			Name: "symlink latest.log to current log file",
+			Cmd:  "ssh",
+			Args: []string{"cd", fmt.Sprintf("~/%s", cfg.HomeDir), "&&", "ln", "-sf", logFile, latestLogFile},
+		},
+		// keep 5 latest log files and ensure only log files get deleted
+		// ls -r cfg.Service_*.log | sort -r | tail -n +6 | xargs -r -d '\n' rm
+		{
+			Name: "keep only the 5 latest log files",
+			Cmd:  "ssh",
+			Args: []string{"cd", fmt.Sprintf("~/%s", cfg.HomeDir), "&&", "ls", "-r", cfg.Service + "_*.log", "|", "sort", "-r", "|", "tail", "-n", "+6", "|", "xargs", "-r", "-d", "'\\n'", "rm"},
+		},
 		{
 			Name: "start service",
 			Cmd:  "ssh",
-			Args: []string{"cd", fmt.Sprintf("~/%s", cfg.HomeDir), "&&", "coproc", "./" + cfg.Service, "&>>", logFile, "&"},
+			Args: []string{"cd", fmt.Sprintf("~/%s", cfg.HomeDir), "&&", "coproc", "./" + cfg.Service, "&>>", latestLogFile, "&"},
 		},
 		{
 			Name: "check service status",

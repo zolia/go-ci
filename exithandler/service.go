@@ -44,7 +44,6 @@ func WrapServices(services ...Service) error {
 				log.Tracef("[service] stopping service: %s", serv.Name())
 				err := serv.Stop(gCtx)
 				log.Tracef("[service] stopped service: %s", serv.Name())
-
 				if err != nil {
 					log.Errorf("[service] %s stop returned err: %v", serv.Name(), err)
 				}
