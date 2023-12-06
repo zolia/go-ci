@@ -102,12 +102,16 @@ func getBranchAndLog() (string, string, error) {
 
 		return nil
 	}
+
 	err = cIter.ForEach(f)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to iterate over commits: %w", err)
 	}
 
-	logs := " - " + strings.Join(logEntries, "\n - ")
+	logs := strings.Join(logEntries, "\n - ")
+	if strings.TrimSpace(logs) != "" {
+		logs = " - " + logs
+	}
 
 	return h.Name().String(), logs, nil
 }
