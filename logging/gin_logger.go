@@ -127,7 +127,11 @@ func GinResponseLogging(config *LoggerConfig) gin.HandlerFunc {
 		c.Next()
 		statusCode := c.Writer.Status()
 		if statusCode >= http.StatusOK && statusCode < http.StatusNoContent {
-			log.Tracef("[RES] %s", blw.body.String())
+			s := blw.body.String()
+			if s == "null" {
+				return
+			}
+			log.Tracef("[RES] %s", s)
 		}
 	}
 }
