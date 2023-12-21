@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,124 +25,120 @@ import (
 type LoggerConfig struct {
 	LogRequestBody  bool
 	LogResponseBody bool
+	LogAssets       bool
 	IgnorePaths     []string
 }
 
 // NewLoggerConfig creates a new LoggerConfig with default settings.
 // Pass in any paths you want to ignore or leave empty to use default paths.
-func NewLoggerConfig(logRequestBody, logResponseBody bool, ignorePaths ...string) *LoggerConfig {
-	defaultPaths := []string{"reports", "file", "health", "metrics", "swagger", "favicon", "static", "photo"}
+func NewLoggerConfig(logRequestBody, logResponseBody, logAssets bool, ignorePaths ...string) *LoggerConfig {
+	defaultPaths := []string{"reports", "file", "swagger", "favicon", "static", "photo"}
 	if len(ignorePaths) == 0 {
 		ignorePaths = defaultPaths
 	}
 	return &LoggerConfig{
 		LogRequestBody:  logRequestBody,
 		LogResponseBody: logResponseBody,
+		LogAssets:       logAssets,
 		IgnorePaths:     ignorePaths,
 	}
 }
 
-// GinRequestLogging is a middleware for logging requests
-func GinRequestLogging(config *LoggerConfig) gin.HandlerFunc {
+func Middleware(config *LoggerConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if ignoreURL(c, config) {
+			c.Next()
+			return
+		}
+
+		// for h, _ := range c.Request.Header {
+		// 	log.Tracef("[RQH] %s: %s", h, c.GetHeader(h))
+		// }
 		start := time.Now()
 		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
+		if c.Request.URL.RawQuery != "" {
+			path = path + "?" + c.Request.URL.RawQuery
+		}
 
-		clientIP := c.ClientIP()
-		method := c.Request.Method
+		// get the response
+		responseBodyWriter := &rewrittenBody{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
+		c.Writer = responseBodyWriter
+		c.Next()
+
 		statusCode := c.Writer.Status()
+		latency := time.Now().Sub(start)
 
-		if raw != "" {
-			path = path + "?" + raw
+		// for h, _ := range c.Writer.Header() {
+		// 	log.Tracef("[RSH] %s: %s", h, c.GetHeader(h))
+		// }
+		// log a proof of request
+		log.Tracef("[GIN] %d | %s | %s | %s | %s", statusCode, c.Request.Method, path, latency, c.ClientIP())
+
+		// don't log request body when configured
+		if !config.LogRequestBody {
+			c.Next()
+			return
 		}
 
-		defer printErrorOrEnd(c, start, statusCode, path)
-
-		log.Tracef("[GIN] %d | %s | %s | %s",
-			statusCode,
-			path,
-			method,
-			clientIP,
-		)
-
-		loggableMethod := c.Request.Method == "POST" || c.Request.Method == "PUT"
-		if config.LogRequestBody && loggableMethod {
-			if isFileUploadRequest(c) {
-				return
-			}
-
-			body := c.Request.Body
-			b, err := io.ReadAll(body)
+		// only these methods can contain request body
+		if requestMethodHasBody(c.Request.Method) {
+			requestBodyBytes, err := io.ReadAll(c.Request.Body)
 			if err == nil {
-				log.Tracef("[REQ] body: %s", string(b))
+				log.Tracef("[REQ] body: %s", string(requestBodyBytes))
 			}
-			// restore the io.ReadCloser to its original state
-			c.Request.Body = io.NopCloser(bytes.NewBuffer(b))
+			// restore the original body to GIN's body reader and return the io.ReadCloser to its original state
+			// for the next middleware
+			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBodyBytes))
+		}
+
+		if config.LogResponseBody && statusCode >= http.StatusOK && statusCode < http.StatusNoContent {
+			s := responseBodyWriter.body.String()
+			if s != "null" && s != "" && !strings.Contains(s, "<head") {
+				log.Tracef("[RES] body: %s", s)
+			}
+		}
+
+		// print request error
+		ginErr := c.Errors.ByType(gin.ErrorTypePrivate).String()
+		if ginErr != "" {
+			log.Errorf("[ERRz] %s", ginErr)
 		}
 	}
 }
 
-func printErrorOrEnd(c *gin.Context, start time.Time, statusCode int, path string) {
-	c.Next()
-
-	comment := c.Errors.ByType(gin.ErrorTypePrivate).String()
-	if comment != "" {
-		log.Errorf("[ERR] %s", comment)
-	}
-	end := time.Now()
-	latency := end.Sub(start)
-	log.Tracef("[END] %d | %s | %s", statusCode, path, latency)
+func requestMethodHasBody(method string) bool {
+	return method == "POST" || method == "PUT" || method == "PATCH"
 }
 
-func isFileUploadRequest(c *gin.Context) bool {
-	return strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data")
-}
-
-type bodyLogWriter struct {
+type rewrittenBody struct {
 	gin.ResponseWriter
 	body *bytes.Buffer
 }
 
-func (w bodyLogWriter) Write(b []byte) (int, error) {
+func (w rewrittenBody) Write(b []byte) (int, error) {
 	w.body.Write(b)
 	return w.ResponseWriter.Write(b)
 }
 
-// GinResponseLogging is a middleware for logging responses
-func GinResponseLogging(config *LoggerConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !config.LogResponseBody {
-			c.Next()
-			return
-		}
-
-		loggableMethod := c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "GET"
-		if !loggableMethod || ignoreURL(config.IgnorePaths, c.Request.URL.Path) {
-			c.Next()
-			return
-		}
-
-		blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
-		c.Writer = blw
-		c.Next()
-		statusCode := c.Writer.Status()
-		if statusCode >= http.StatusOK && statusCode < http.StatusNoContent {
-			s := blw.body.String()
-			if s == "null" {
-				return
-			}
-			log.Tracef("[RES] %s", s)
-		}
-	}
-}
-
 // ignoreURL checks if the URL should be ignored based on the provided paths
-func ignoreURL(ignorePaths []string, url string) bool {
-	for _, path := range ignorePaths {
-		if strings.Contains(url, path) {
+func ignoreURL(c *gin.Context, config *LoggerConfig) bool {
+	for _, path := range config.IgnorePaths {
+		if strings.Contains(c.Request.URL.Path, path) {
 			return true
 		}
 	}
+	if !config.LogAssets && isStaticAsset(c) {
+		return true
+	}
+
 	return false
+}
+
+// isStaticAsset checks if the request is for a static asset.
+func isStaticAsset(c *gin.Context) bool {
+	// Regular expression to match static file patterns
+	staticAssetPattern := regexp.MustCompile(`\.(css|js|jpg|jpeg|png|gif|svg|ico|woff2|ttf|eot|html)$`)
+
+	// Check if the request path matches the static asset pattern
+	return staticAssetPattern.MatchString(c.Request.URL.Path)
 }
