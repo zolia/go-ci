@@ -83,7 +83,7 @@ func Middleware(config *LoggerConfig) gin.HandlerFunc {
 		// only these methods can contain request body
 		if requestMethodHasBody(c.Request.Method) {
 			requestBodyBytes, err := io.ReadAll(c.Request.Body)
-			if err == nil {
+			if err == nil && len(bytes.TrimSpace(requestBodyBytes)) > 0 {
 				log.Tracef("[REQ] body: %s", string(requestBodyBytes))
 			}
 			// restore the original body to GIN's body reader and return the io.ReadCloser to its original state
