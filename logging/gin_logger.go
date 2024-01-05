@@ -88,7 +88,7 @@ var DefaultIgnoreRules = []Rule{
 func Middleware(config Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cfg := getActiveOrDefaultConfig(c, config)
-		log.Tracef("config: %+v", cfg)
+		// log.Tracef("config: %+v", cfg)
 
 		id := uuid.New()
 		start := time.Now()
