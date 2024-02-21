@@ -49,7 +49,11 @@ type Config struct {
 	HomeDir string
 	// KeystoreDir certificate key stores
 	CopyDst map[string][]string
-	// Binary execution dir
+	// Directory configured for garbage collector logs
+	GCLogsDir string
+	// Directory configured for application logs
+	LogsDir string
+	// Source directory where application jar resides
 	BinDir string
 	// LogFileName is name of the log file to copy to remote
 	LogFileName func() string
@@ -191,6 +195,16 @@ func deployCommands(cfg Config) []Command {
 			Name: "create project dir in home",
 			Cmd:  "ssh",
 			Args: []string{"[ ! -d " + cfg.HomeDir + " ] && mkdir -p", cfg.HomeDir, "&"},
+		},
+		{
+			Name: "create gc logs directory",
+			Cmd:  "ssh",
+			Args: []string{"[ ! -d ~/" + cfg.GCLogsDir + " ] && mkdir -p", cfg.GCLogsDir, "&"},
+		},
+		{
+			Name: "create logs directory",
+			Cmd:  "ssh",
+			Args: []string{"[ ! -d ~/" + cfg.LogsDir + " ] && mkdir -p", cfg.LogsDir, "&"},
 		},
 	}
 

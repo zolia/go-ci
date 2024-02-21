@@ -37,12 +37,7 @@ type Config struct {
 	Env string
 	// HomeDir is tilde + project dir on the remote "~/<x>"
 	HomeDir string
-	// Directory configured for garbage collector logs
-	GCLogsDir string
-	// Directory configured for application logs
-	LogsDir string
-	// Source directory where application jar resides
-	BinDir string
+	BinDir  string
 	// LogFileName is name of the log file to copy to remote
 	LogFileName func() string
 	// Files to copy to remote
@@ -137,16 +132,6 @@ func deployCommands(cfg Config) []Command {
 			Name: "create project dir in home",
 			Cmd:  "ssh",
 			Args: []string{"[ ! -d ~/" + cfg.HomeDir + " ] && mkdir -p", cfg.HomeDir, "&"},
-		},
-		{
-			Name: "create gc logs directory",
-			Cmd:  "ssh",
-			Args: []string{"[ ! -d ~/" + cfg.HomeDir + "/" + cfg.GCLogsDir + " ] && mkdir -p", cfg.HomeDir + "/" + cfg.GCLogsDir, "&"},
-		},
-		{
-			Name: "create logs directory",
-			Cmd:  "ssh",
-			Args: []string{"[ ! -d ~/" + cfg.HomeDir + "/" + cfg.LogsDir + " ] && mkdir -p", cfg.HomeDir + "/" + cfg.LogsDir, "&"},
 		},
 		{
 			Name: "copy .env file to remote",
