@@ -273,6 +273,11 @@ func deployCommands(cfg Config) []Command {
 			Args: []string{"sudo", "service", cfg.Service, "start"},
 		},
 		{
+			Name: "enable service",
+			Cmd:  "ssh",
+			Args: []string{"sudo", "systemctl", "enable", cfg.Service},
+		},
+		{
 			Name: "check service status",
 			Cmd:  "ssh",
 			Args: []string{"sudo", "service", cfg.Service, "status"},
