@@ -59,8 +59,8 @@ type Config struct {
 	LogFileName func() string
 	// Files to copy to remote
 	Files []string
-	// Initialise service as init.d service
-	InitD bool
+	// Setup systemd service
+	SystemD bool
 	// possible commands to run before/after launch
 	Prepare []Command
 	// PostLaunch []Command
@@ -96,58 +96,44 @@ func Deploy(cfg Config) error {
 	return nil
 }
 
-func setupInitDCommands(cfg Config) []Command {
-	// check if init.d service exists
-	if CheckServiceExists(cfg) {
-		return nil
-	}
-
+func setupSystemDCommands(cfg Config) []Command {
 	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
-	fmt.Printf("setting up init.d service for: %s\n", initDFile)
-	initDLink := fmt.Sprintf("/etc/init.d/%s", cfg.Service)
+
+	systemDFile := fmt.Sprintf("/etc/systemd/system/%s.service", cfg.Service)
+	// Define the content of the service file
+
+	systemDFileContent := `[Unit]
+Description={serviceName} service
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/etc/init.d/{serviceName} start
+ExecStop=/etc/init.d/{serviceName} stop
+PIDFile=/var/run/{serviceName}/{serviceName}.pid
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target`
+
+	// Replace the placeholders in the service file content
+	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{serviceName}", cfg.Service)
+	systemDFileContent = "'" + systemDFileContent + "'"
+	fmt.Printf("setting up systemd service for: %s\n", systemDFile)
 
 	return []Command{
-		{
-			Name: "setup init.d service",
-			Cmd:  "ssh",
-			Args: []string{"sudo", "ln", "-s", initDFile, initDLink},
-		},
 		{
 			Name: "setup init.d service permissions",
 			Cmd:  "ssh",
 			Args: []string{"sudo", "chmod", "+x", initDFile},
 		},
 		{
-			Name: "setup init.d service defaults",
+			Name: "create systemd service file",
 			Cmd:  "ssh",
-			Args: []string{"sudo", "update-rc.d", cfg.Service, "defaults"},
+			Args: []string{"echo", systemDFileContent, "|", "sudo", "tee", systemDFile},
 		},
 	}
-}
-
-func CheckServiceExists(cfg Config) bool {
-	fmt.Printf("Checking if init.d service exists: %s\n", cfg.Service)
-	// The command `test -x /etc/init.d/SERVICE && sudo /etc/init.d/SERVICE status` checks if the service
-	// script is executable and if so, tries to get its status.
-	checkCmd := fmt.Sprintf("test -x /etc/init.d/%s && sudo /etc/init.d/%s status", cfg.Service, cfg.Service)
-
-	// Run the command on the remote system
-	output, err := sh.Output("ssh", "-i", cfg.SSHKey, cfg.SSHAddr, checkCmd)
-
-	// If the command was successful, the service exists
-	if err == nil {
-		fmt.Printf("init.d service already exists: %s - skipping creation\n", cfg.Service)
-		return true
-	}
-
-	fmt.Printf("init.d service check returned: %v\n", output)
-
-	// If the command failed with an error message containing "Not running", the service exists
-	if strings.Contains(output, "Not running") {
-		return true
-	}
-
-	return false
 }
 
 func deploy(cfg Config, commands []Command) error {
@@ -269,8 +255,10 @@ func deployCommands(cfg Config) []Command {
 	}
 
 	var initdCommands []Command
-	if cfg.InitD {
-		initdCommands = setupInitDCommands(cfg)
+
+	var systemdCommands []Command
+	if cfg.SystemD {
+		systemdCommands = setupSystemDCommands(cfg)
 	}
 
 	startCommands := []Command{
@@ -299,6 +287,7 @@ func deployCommands(cfg Config) []Command {
 	allCommands = append(allCommands, copyCommands...)
 	allCommands = append(allCommands, uploadCommands...)
 	allCommands = append(allCommands, initdCommands...)
+	allCommands = append(allCommands, systemdCommands...)
 	allCommands = append(allCommands, startCommands...)
 	return allCommands
 }
