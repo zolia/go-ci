@@ -112,6 +112,7 @@ ExecStart=/etc/init.d/{serviceName} start
 ExecStop=/etc/init.d/{serviceName} stop
 PIDFile=/var/run/{serviceName}/{serviceName}.pid
 Restart=always
+LimitNOFILE=65536
 RestartSec=5
 
 [Install]
