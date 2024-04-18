@@ -96,6 +96,25 @@ func Deploy(cfg Config) error {
 	return nil
 }
 
+func setupInitDCommands(cfg Config) []Command {
+	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
+	fmt.Printf("setting up init.d service for: %s\n", initDFile)
+	initDLink := fmt.Sprintf("/etc/init.d/%s", cfg.Service)
+
+	return []Command{
+		{
+			Name: "setup init.d service",
+			Cmd:  "ssh",
+			Args: []string{"sudo", "ln", "-s", initDFile, initDLink},
+		},
+		{
+			Name: "setup init.d service permissions",
+			Cmd:  "ssh",
+			Args: []string{"sudo", "chmod", "+x", initDFile},
+		},
+	}
+}
+
 func setupSystemDCommands(cfg Config) []Command {
 	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
 
@@ -256,6 +275,7 @@ func deployCommands(cfg Config) []Command {
 	}
 
 	var initdCommands []Command
+	initdCommands = setupInitDCommands(cfg)
 
 	var systemdCommands []Command
 	if cfg.SystemD {
