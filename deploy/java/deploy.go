@@ -243,25 +243,13 @@ func deployCommands(cfg Config) []Command {
 		})
 	}
 
-	serviceWithHomeDir := fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service)
+	// serviceWithHomeDir := fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service)
 
 	uploadCommands := []Command{
 		{
 			Name:         "stopping existing service",
 			Cmd:          "ssh",
 			Args:         []string{"sudo", "service", cfg.Service, "stop"},
-			IgnoreFailed: true,
-		},
-		{
-			Name:         "backup existing properties file",
-			Cmd:          "ssh",
-			Args:         []string{"sudo", "mv", serviceWithHomeDir + ".properties", serviceWithHomeDir + ".properties.bak"},
-			IgnoreFailed: true,
-		},
-		{
-			Name:         "rename new properties file",
-			Cmd:          "ssh",
-			Args:         []string{"sudo", "mv", serviceWithHomeDir + ".properties." + cfg.Env, serviceWithHomeDir + ".properties"},
 			IgnoreFailed: true,
 		},
 		{
