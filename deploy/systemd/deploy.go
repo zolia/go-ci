@@ -53,12 +53,14 @@ type Config struct {
 	CopyDst map[string][]string
 	// Directory configured for application logs
 	LogsDir string
-	// Source directory where application jar resides
+	// Source directory where application resides
 	BinDir string
 	// LogFileName is name of the log file to copy to remote
 	LogFileName func() string
 	// Files to copy to remote
 	Files []string
+	// Copy files to remote and rename
+	FilesToFiles map[string]string
 	// Setup systemd service
 	SystemD bool
 	// possible commands to run before/after launch
@@ -96,58 +98,32 @@ func Deploy(cfg Config) error {
 	return nil
 }
 
-func setupInitDCommands(cfg Config) []Command {
-	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
-	fmt.Printf("setting up init.d service for: %s\n", initDFile)
-	initDLink := fmt.Sprintf("/etc/init.d/%s", cfg.Service)
-
-	return []Command{
-		{
-			Name: "setup init.d service",
-			Cmd:  "ssh",
-			Args: []string{"sudo", "ln", "-sf", initDFile, initDLink},
-		},
-		{
-			Name: "setup init.d service permissions",
-			Cmd:  "ssh",
-			Args: []string{"sudo", "chmod", "+x", initDFile},
-		},
-	}
-}
-
 func setupSystemDCommands(cfg Config) []Command {
-	initDFile := fmt.Sprintf("%s/%s.jar", cfg.HomeDir, cfg.Service)
-
 	systemDFile := fmt.Sprintf("/etc/systemd/system/%s.service", cfg.Service)
 	// Define the content of the service file
 
 	systemDFileContent := `[Unit]
-Description={serviceName} service
+Description={service} service
 After=network.target
 
 [Service]
-Type=forking
-ExecStart=/etc/init.d/{serviceName} start
-ExecStop=/etc/init.d/{serviceName} stop
-PIDFile=/run/{serviceName}/{serviceName}.pid
+Type=simple
+WorkingDirectory={homeDir}
+ExecStart={homeDir}/{service}
 Restart=always
 LimitNOFILE=65536
-RestartSec=5
+RestartSec=15
 
 [Install]
 WantedBy=multi-user.target`
 
 	// Replace the placeholders in the service file content
-	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{serviceName}", cfg.Service)
+	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{homeDir}", cfg.HomeDir)
+	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{service}", cfg.Service)
 	systemDFileContent = "'" + systemDFileContent + "'"
 	fmt.Printf("setting up systemd service for: %s\n", systemDFile)
 
 	return []Command{
-		{
-			Name: "setup init.d service permissions",
-			Cmd:  "ssh",
-			Args: []string{"sudo", "chmod", "+x", initDFile},
-		},
 		{
 			Name: "create systemd service file",
 			Cmd:  "ssh",
@@ -236,6 +212,16 @@ func createDeployCommands(cfg Config) []Command {
 		})
 	}
 
+	// Copy files to remote and rename
+	if cfg.FilesToFiles != nil {
+		for file, remoteFile := range cfg.FilesToFiles {
+			copyCommands = append(copyCommands, Command{
+				Name: "copy " + file,
+				Cmd:  "scp",
+				Args: []string{file, fmt.Sprintf("%s:%s", cfg.SSHAddr, remoteFile)},
+			})
+		}
+	}
 	// serviceWithHomeDir := fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service)
 
 	uploadCommands := []Command{
@@ -254,9 +240,6 @@ func createDeployCommands(cfg Config) []Command {
 			},
 		},
 	}
-
-	var initdCommands []Command
-	initdCommands = setupInitDCommands(cfg)
 
 	var systemdCommands []Command
 	if cfg.SystemD {
@@ -293,7 +276,6 @@ func createDeployCommands(cfg Config) []Command {
 	allCommands = append(allCommands, prepareCommands...)
 	allCommands = append(allCommands, copyCommands...)
 	allCommands = append(allCommands, uploadCommands...)
-	allCommands = append(allCommands, initdCommands...)
 	allCommands = append(allCommands, systemdCommands...)
 	allCommands = append(allCommands, startCommands...)
 	return allCommands
@@ -301,6 +283,13 @@ func createDeployCommands(cfg Config) []Command {
 
 // ValidateDeploymentEnv validates local .env_<x> against remote .env_<x>
 func ValidateDeploymentEnv(cfg Config) error {
+	// if remote .env does not exists, skip validation
+	_, err := sh.Output("ssh", "-i", cfg.SSHKey, cfg.SSHAddr, "ls", cfg.HomeDir+"/.env")
+	if err != nil {
+		fmt.Printf("remote .env %s does not exist yet, skipping validation\n", cfg.Env)
+		return nil
+	}
+
 	envFile := fmt.Sprintf(".env_%s", cfg.Env)
 	valid, err := deploy.ValidateEnv(cfg.HomeDir, []string{"-i", cfg.SSHKey, cfg.SSHAddr}, envFile, true)
 	if err != nil {
