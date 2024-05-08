@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -29,16 +30,28 @@ type stopNotif struct {
 
 var errDone = errors.New("done")
 
-// WrapServices notifies and shuts down the service on OS signals or err
-func WrapServices(notify NotifyServiceStopFunc, services ...Service) error {
-	mainCtx, stop := signal.NotifyContext(
-		context.Background(),
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	)
-	defer stop()
+var stopSignals = []os.Signal{
+	syscall.SIGHUP,
+	syscall.SIGINT,
+	syscall.SIGTERM,
+	syscall.SIGQUIT,
+}
+
+// WrapServices notifies and shuts down the service on OS signals or service errors
+func WrapServices(notify NotifyServiceStopFunc, shouldNotify bool, services ...Service) error {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, stopSignals...)
+	defer signal.Stop(sigs) // Stop signal handling when exiting function
+
+	mainCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var caughtSignal os.Signal
+	go func() {
+		caughtSignal = <-sigs
+		log.Tracef("[service] received signal: %s", caughtSignal)
+		cancel()
+	}()
 
 	// double the buffer size for post-start and post-stop notifications
 	var notifyErr = make(chan stopNotif, len(services)*2)
@@ -46,23 +59,32 @@ func WrapServices(notify NotifyServiceStopFunc, services ...Service) error {
 	// blocking service run
 	svcGroup := runServices(mainCtx, services, notifyErr)
 
-	log.Tracef("waiting for service errors")
+	log.Tracef("[service] waiting for service errors")
 	firstErr := svcGroup.Wait()
-	log.Tracef("service group stopped with first error: %s", firstErr)
+	log.Tracef("[service] group stopped with first error: %s", firstErr)
 
 	// all notifications have already been sent
 	close(notifyErr)
 
 	reason := buildShutdownMessage(notifyErr)
-
-	log.Tracef("reason for service stop: %v", reason)
-
-	notifiedErr := notify(reason)
-	if notifiedErr != nil {
-		log.Errorf("failed to notify about service stop: %v", notifiedErr)
+	if caughtSignal != nil {
+		reason = fmt.Sprintf("process caught signal: %s", caughtSignal)
 	}
 
-	log.Tracef("all services stopped")
+	log.Tracef("[service] reason for service stop: %v", reason)
+
+	isSystemdRestart := caughtSignal == syscall.SIGTERM
+	if shouldNotify && !isSystemdRestart {
+		log.Tracef("[service] notifying about service stop")
+		notifiedErr := notify(reason)
+		if notifiedErr != nil {
+			log.Errorf("[service] failed to notify about service stop: %v", notifiedErr)
+		}
+	} else {
+		log.Tracef("[service] silencing service stop notification")
+	}
+
+	log.Tracef("[service] all services stopped")
 
 	return nil
 }
