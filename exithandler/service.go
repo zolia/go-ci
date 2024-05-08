@@ -18,82 +18,127 @@ type Service interface {
 	Stop(ctx context.Context) error
 }
 
+// NotifyServiceStopFunc is a function type that notifies about abrupt service stops
+type NotifyServiceStopFunc func(reason string) error
+
+type stopNotif struct {
+	err     error
+	service string
+	reason  string
+}
+
+var errDone = errors.New("done")
+
 // WrapServices notifies and shuts down the service on OS signals or err
-func WrapServices(services ...Service) error {
+func WrapServices(notify NotifyServiceStopFunc, services ...Service) error {
 	mainCtx, stop := signal.NotifyContext(
 		context.Background(),
+		syscall.SIGHUP,
 		syscall.SIGINT,
 		syscall.SIGTERM,
-		// syscall.SIGKILL,
+		syscall.SIGQUIT,
 	)
 	defer stop()
-	g, gCtx := errgroup.WithContext(mainCtx)
-	for _, srv := range services {
-		func(serv Service) {
-			g.Go(func() error {
-				log.Tracef("[service] starting: %s", serv.Name())
-				err := serv.Start()
-				log.Tracef("[service] finished service: %s", serv.Name())
-				if err != nil {
-					log.Errorf("[service] %s start returned err: %v", serv.Name(), err)
-				}
-				return err
-			})
-			g.Go(func() error {
-				<-gCtx.Done()
-				log.Tracef("[service] stopping service: %s", serv.Name())
-				err := serv.Stop(gCtx)
-				log.Tracef("[service] stopped service: %s", serv.Name())
-				if err != nil {
-					log.Errorf("[service] %s stop returned err: %v", serv.Name(), err)
-				}
-				return err
-			})
-		}(srv)
+
+	// double the buffer size for post-start and post-stop notifications
+	var notifyErr = make(chan stopNotif, len(services)*2)
+
+	// blocking service run
+	svcGroup := runServices(mainCtx, services, notifyErr)
+
+	log.Tracef("waiting for service errors")
+	firstErr := svcGroup.Wait()
+	log.Tracef("service group stopped with first error: %s", firstErr)
+
+	// all notifications have already been sent
+	close(notifyErr)
+
+	reason := buildShutdownMessage(notifyErr)
+
+	log.Tracef("reason for service stop: %v", reason)
+
+	notifiedErr := notify(reason)
+	if notifiedErr != nil {
+		log.Errorf("failed to notify about service stop: %v", notifiedErr)
 	}
-	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
-		return fmt.Errorf("failed to shutdown: %w", err)
-	}
+
 	log.Tracef("all services stopped")
+
 	return nil
 }
 
-// StartFunc is a function type that matches the signature of the Start method.
-type StartFunc func() error
-
-// ShutdownFunc is a function type that matches the signature of the Shutdown method.
-type ShutdownFunc func(context.Context) error
-
-// GenericService is a wrapper that allows any function matching the StartFunc signature
-// to be used as a Service.
-type GenericService struct {
-	name         string
-	startFunc    StartFunc
-	shutdownFunc ShutdownFunc
-}
-
-// NewService returns a new GenericService.
-func NewService(name string, start StartFunc, shutdown ShutdownFunc) *GenericService {
-	return &GenericService{
-		name:         name,
-		startFunc:    start,
-		shutdownFunc: shutdown,
+func runServices(mainCtx context.Context, services []Service, notifyErr chan stopNotif) *errgroup.Group {
+	// a derived context that is cancelled if any function in the error group returns a non-nil error
+	svcGroup, svcGroupCtx := errgroup.WithContext(mainCtx)
+	for _, srv := range services {
+		runService(svcGroup, svcGroupCtx, srv, notifyErr)
 	}
+
+	return svcGroup
 }
 
-var _ Service = (*GenericService)(nil)
+func runService(svcGroup *errgroup.Group, svcGroupCtx context.Context, serv Service, notifyErr chan stopNotif) {
+	// start service in a goroutine
+	// and return the error to the group when any Start finishes
+	svcGroup.Go(func() error {
+		log.Tracef("[service] starting: %s", serv.Name())
+		err := serv.Start()
+		log.Tracef("[service] finished: %s", serv.Name())
 
-// Name returns the stored name.
-func (gs *GenericService) Name() string {
-	return gs.name
+		withError := "finished without error"
+		if err != nil {
+			withError = "finished with error"
+		}
+		notifyErr <- stopNotif{
+			err:     err,
+			service: serv.Name(),
+			reason:  withError,
+		}
+
+		// service Starts "don't have to" return an error
+		// either nil or non-nil, we want to stop the other services
+		// we return errDone to signal the group to stop
+		if err == nil {
+			return errDone
+		}
+
+		return err
+	})
+
+	// stop service on group context cancellation
+	// we put this in a separate goroutine to make sure
+	// we don't attempt to stop a service that hasn't started or errored
+	svcGroup.Go(func() error {
+		// wait for group context to be cancelled
+		// this will happen if any service.Start returns an error
+		// or if the main context is cancelled by an OS signal
+		<-svcGroupCtx.Done()
+		log.Tracef("[service] stopping: %s", serv.Name())
+		err := serv.Stop(svcGroupCtx)
+		log.Tracef("[service] stopped: %s", serv.Name())
+
+		withError := "stopped without error"
+		if err != nil {
+			withError = "stopped with error"
+		}
+		notifyErr <- stopNotif{
+			service: serv.Name(),
+			reason:  withError,
+			err:     err,
+		}
+
+		return err
+	})
 }
 
-// Start calls the stored StartFunc.
-func (gs *GenericService) Start() error {
-	return gs.startFunc()
-}
-
-// Stop calls the stored ShutdownFunc.
-func (gs *GenericService) Stop(ctx context.Context) error {
-	return gs.shutdownFunc(ctx)
+func buildShutdownMessage(notifyErr chan stopNotif) string {
+	var errStr string
+	for nr := range notifyErr {
+		if nr.err != nil {
+			errStr += fmt.Sprintf("%s: %s %s\n", nr.service, nr.reason, nr.err.Error())
+		} else {
+			errStr += fmt.Sprintf("%s: %s\n", nr.service, nr.reason)
+		}
+	}
+	return errStr
 }
