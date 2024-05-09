@@ -39,6 +39,38 @@ type DeploymentMessage struct {
 	Color      Color
 }
 
+// ServiceStopMessage is a message sent to Slack on service stop
+type ServiceStopMessage struct {
+	SlackURL    string
+	Env         string
+	Project     string
+	Error       string
+	ProjectName string
+	RepoLink    string
+	Color       Color
+}
+
+// SlackServiceStop sends a Slack message on service stop
+func SlackServiceStop(msg ServiceStopMessage) error {
+	title := fmt.Sprintf("%s services stopped in %s env", msg.ProjectName, msg.Env)
+	attachment := slack.Attachment{
+		Color:      string(Bad),
+		AuthorName: msg.ProjectName,
+		AuthorLink: msg.RepoLink,
+		Title:      title,
+		Text:       msg.Error,
+	}
+
+	err := slack.PostWebhook(msg.SlackURL, &slack.WebhookMessage{
+		Attachments: []slack.Attachment{attachment},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send Slack notification: %w", err)
+	}
+
+	return nil
+}
+
 // SlackDeployment sends a Slack message on deployment
 func SlackDeployment(msg DeploymentMessage) error {
 	branchName, log, err := getBranchAndLog()
