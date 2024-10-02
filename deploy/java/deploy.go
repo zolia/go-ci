@@ -127,6 +127,7 @@ After=network.target
 
 [Service]
 Type=forking
+WorkingDirectory={homeDir}
 ExecStart=/etc/init.d/{serviceName} start
 ExecStop=/etc/init.d/{serviceName} stop
 PIDFile=/run/{serviceName}/{serviceName}.pid
@@ -138,6 +139,7 @@ RestartSec=5
 WantedBy=multi-user.target`
 
 	// Replace the placeholders in the service file content
+	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{homeDir}", cfg.HomeDir)
 	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{serviceName}", cfg.Service)
 	systemDFileContent = "'" + systemDFileContent + "'"
 	fmt.Printf("setting up systemd service for: %s\n", systemDFile)
