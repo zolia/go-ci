@@ -93,6 +93,10 @@ func runServices(mainCtx context.Context, services []Service, notifyErr chan sto
 	// a derived context that is cancelled if any function in the error group returns a non-nil error
 	svcGroup, svcGroupCtx := errgroup.WithContext(mainCtx)
 	for _, srv := range services {
+		if srv == nil {
+			log.Warnf("[service] service is nil, skipping")
+			continue
+		}
 		runService(svcGroup, svcGroupCtx, srv, notifyErr)
 	}
 
