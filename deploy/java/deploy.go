@@ -10,6 +10,7 @@ package java
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/magefile/mage/sh"
@@ -61,6 +62,8 @@ type Config struct {
 	Files []string
 	// Setup systemd service
 	SystemD bool
+	// Max open files limit
+	MaxOpenFiles int
 	// possible commands to run before/after launch
 	Prepare []Command
 	// PostLaunch []Command
@@ -121,6 +124,10 @@ func setupSystemDCommands(cfg Config) []Command {
 	systemDFile := fmt.Sprintf("/etc/systemd/system/%s.service", cfg.Service)
 	// Define the content of the service file
 
+	if cfg.MaxOpenFiles <= 0 {
+		cfg.MaxOpenFiles = 65536 // default value
+	}
+
 	systemDFileContent := `[Unit]
 Description={serviceName} service
 After=network.target
@@ -132,7 +139,7 @@ ExecStart=/etc/init.d/{serviceName} start
 ExecStop=/etc/init.d/{serviceName} stop
 PIDFile=/run/{serviceName}/{serviceName}.pid
 Restart=always
-LimitNOFILE=65536
+LimitNOFILE={maxOpenFiles}
 RestartSec=5
 
 [Install]
@@ -141,6 +148,7 @@ WantedBy=multi-user.target`
 	// Replace the placeholders in the service file content
 	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{homeDir}", cfg.HomeDir)
 	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{serviceName}", cfg.Service)
+	systemDFileContent = strings.ReplaceAll(systemDFileContent, "{maxOpenFiles}", strconv.Itoa(cfg.MaxOpenFiles))
 	systemDFileContent = "'" + systemDFileContent + "'"
 	fmt.Printf("setting up systemd service for: %s\n", systemDFile)
 
