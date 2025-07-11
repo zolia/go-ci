@@ -234,18 +234,28 @@ func createDeployCommands(cfg Config) []Command {
 
 	uploadCommands := []Command{
 		{
+			Name: "copy binary to remote as a tmp file",
+			Cmd:  "scp",
+			Args: []string{
+				fmt.Sprintf("%s/%s", cfg.BinDir, cfg.ServiceExecutable),
+				fmt.Sprintf("%s/%s", targetRemoteHome, cfg.Service+".tmp"),
+			},
+		},
+		{
 			Name:         "stopping existing service",
 			Cmd:          "ssh",
 			Args:         []string{"sudo", "service", cfg.Service, "stop"},
 			IgnoreFailed: true,
 		},
 		{
-			Name: "copy binary to remote",
-			Cmd:  "scp",
-			Args: []string{
-				fmt.Sprintf("%s/%s", cfg.BinDir, cfg.ServiceExecutable),
-				fmt.Sprintf("%s/%s", targetRemoteHome, cfg.Service),
-			},
+			Name: "backup old service executable",
+			Cmd:  "ssh",
+			Args: []string{"cp", "-f", fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service), fmt.Sprintf("%s/%s.bak", cfg.HomeDir, cfg.Service)},
+		},
+		{
+			Name: "move tmp file to service executable",
+			Cmd:  "ssh",
+			Args: []string{"mv", fmt.Sprintf("%s/%s.tmp", cfg.HomeDir, cfg.Service), fmt.Sprintf("%s/%s", cfg.HomeDir, cfg.Service)},
 		},
 	}
 
